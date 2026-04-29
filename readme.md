@@ -6,7 +6,7 @@ A real-time encrypted chat application demonstrating the Caesar Cipher substitut
 
 ---
 
-## 🚀 How to Run This Project
+##  How to Run This Project
 
 ### Prerequisites
 - **Node.js** (v16 or higher) – [Download here](https://nodejs.org/)
