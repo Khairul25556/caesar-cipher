@@ -309,6 +309,10 @@ app.get('/bruteforce', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'bruteforce.html'));
 });
 
+app.get('/cryptanalysis', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'cryptanalysis.html'));
+});
+
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
