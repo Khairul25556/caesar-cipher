@@ -1,0 +1,357 @@
+<!-- public/processes.html - Fixed rule info display -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Chat - Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        .nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .nav a {
+            padding: 10px 20px;
+            background: white;
+            text-decoration: none;
+            color: #667eea;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .card h3 {
+            margin-bottom: 15px;
+            color: #333;
+            border-left: 4px solid #667eea;
+            padding-left: 10px;
+        }
+        .rule-info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 10px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+        .step-controls {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .step-btn {
+            padding: 8px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .step-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .step-display {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-family: monospace;
+        }
+        .char-step {
+            padding: 5px;
+            margin: 5px 0;
+            border-left: 3px solid #667eea;
+            cursor: pointer;
+        }
+        .char-step:hover {
+            background: #f0f0f0;
+        }
+        .live-test input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        .output {
+            background: #e8eaf6;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .steps-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Caesar Cipher Visualization</h1>
+            <p>Step-by-step encryption process with live demonstration</p>
+        </div>
+        <div class="nav">
+            <a href="/chat">💬 Chat</a>
+            <a href="/bruteforce">🔓 Brute Force</a>
+            <a href="/admin" id="adminLink" style="display:none;">⚙️ Admin</a>
+            <a href="#" onclick="logout()">🚪 Logout</a>
+        </div>
+        
+        <div class="grid">
+            <div class="card">
+                <h3>📜 Rule Information</h3>
+                <div class="rule-info" id="ruleInfo">Loading...</div>
+                
+                <h3>💻 Encryption Function</h3>
+                <pre><code>function caesarEncrypt(text, shift) {
+    shift = ((shift % 26) + 26) % 26;
+    return text.split('').map(char => {
+        if (char >= 'a' && char <= 'z') {
+            return String.fromCharCode(
+                ((char.charCodeAt(0) - 97 + shift) % 26) + 97
+            );
+        } else if (char >= 'A' && char <= 'Z') {
+            return String.fromCharCode(
+                ((char.charCodeAt(0) - 65 + shift) % 26) + 65
+            );
+        }
+        return char;
+    }).join('');
+}</code></pre>
+            </div>
+            
+            <div class="card">
+                <h3>🔬 Step-by-Step Debug Visualization</h3>
+                <div class="step-controls">
+                    <button class="step-btn" id="prevBtn" onclick="prevStep()">◀ Previous Step</button>
+                    <button class="step-btn" id="nextBtn" onclick="nextStep()">Next Step ▶</button>
+                    <button class="step-btn" onclick="resetSteps()">⟳ Reset</button>
+                </div>
+                <div class="step-display" id="stepDisplay">
+                    Select a step or click Next
+                </div>
+                <div id="stepsList" class="steps-list"></div>
+            </div>
+            
+            <div class="card live-test">
+                <h3>🧪 Live Testing Panel</h3>
+                <input type="text" id="testInput" placeholder="Enter text to encrypt..." value="hello world">
+                <div style="margin-top: 10px;"><strong>Encrypted Output:</strong></div>
+                <div class="output" id="liveOutput">---</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentKey = 3;
+        let currentRule = 'Caesar_k3';
+        let currentSteps = [];
+        let currentStepIndex = -1;
+        
+        function caesarEncrypt(text, shift) {
+            shift = ((shift % 26) + 26) % 26;
+            return text.split('').map(char => {
+                if (char >= 'a' && char <= 'z') {
+                    return String.fromCharCode(((char.charCodeAt(0) - 97 + shift) % 26) + 97);
+                } else if (char >= 'A' && char <= 'Z') {
+                    return String.fromCharCode(((char.charCodeAt(0) - 65 + shift) % 26) + 65);
+                }
+                return char;
+            }).join('');
+        }
+        
+        function generateSteps(text) {
+            currentSteps = [];
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (char >= 'a' && char <= 'z') {
+                    const charCode = char.charCodeAt(0) - 97;
+                    const newCode = (charCode + currentKey) % 26;
+                    const newChar = String.fromCharCode(newCode + 97);
+                    currentSteps.push({
+                        index: i,
+                        original: char,
+                        originalCode: charCode,
+                        newCode: newCode,
+                        encrypted: newChar,
+                        formula: `${char} → (${charCode} + ${currentKey}) % 26 = ${newCode} → ${newChar}`
+                    });
+                } else if (char >= 'A' && char <= 'Z') {
+                    const charCode = char.charCodeAt(0) - 65;
+                    const newCode = (charCode + currentKey) % 26;
+                    const newChar = String.fromCharCode(newCode + 65);
+                    currentSteps.push({
+                        index: i,
+                        original: char,
+                        originalCode: charCode,
+                        newCode: newCode,
+                        encrypted: newChar,
+                        formula: `${char} → (${charCode} + ${currentKey}) % 26 = ${newCode} → ${newChar}`
+                    });
+                } else {
+                    currentSteps.push({
+                        index: i,
+                        original: char,
+                        encrypted: char,
+                        formula: `${char} → (non-letter) → ${char}`
+                    });
+                }
+            }
+            currentStepIndex = -1;
+            updateStepDisplay();
+        }
+        
+        function updateStepDisplay() {
+            const stepsDiv = document.getElementById('stepsList');
+            if (currentSteps.length === 0) {
+                stepsDiv.innerHTML = '<p>No steps available</p>';
+                document.getElementById('stepDisplay').innerHTML = 'Enter text in Live Testing panel';
+                return;
+            }
+            
+            stepsDiv.innerHTML = currentSteps.map((step, idx) => `
+                <div class="char-step" style="background: ${idx === currentStepIndex ? '#e8eaf6' : 'transparent'}" onclick="setStep(${idx})">
+                    <strong>Step ${idx + 1}:</strong> ${step.formula}
+                </div>
+            `).join('');
+            
+            if (currentStepIndex >= 0 && currentStepIndex < currentSteps.length) {
+                const step = currentSteps[currentStepIndex];
+                const partialResult = currentSteps.slice(0, currentStepIndex + 1).map(s => s.encrypted).join('');
+                document.getElementById('stepDisplay').innerHTML = `
+                    <strong>Current Transformation:</strong><br>
+                    ${step.formula}<br><br>
+                    <strong>Partial Result (so far):</strong><br>
+                    "${partialResult}"
+                `;
+            } else {
+                document.getElementById('stepDisplay').innerHTML = 'Click Next Step or on any step to begin visualization';
+            }
+            
+            document.getElementById('prevBtn').disabled = currentStepIndex <= -1;
+            document.getElementById('nextBtn').disabled = currentStepIndex >= currentSteps.length - 1;
+        }
+        
+        function nextStep() {
+            if (currentStepIndex < currentSteps.length - 1) {
+                currentStepIndex++;
+                updateStepDisplay();
+            }
+        }
+        
+        function prevStep() {
+            if (currentStepIndex > -1) {
+                currentStepIndex--;
+                updateStepDisplay();
+            }
+        }
+        
+        function setStep(idx) {
+            currentStepIndex = idx;
+            updateStepDisplay();
+        }
+        
+        function resetSteps() {
+            currentStepIndex = -1;
+            updateStepDisplay();
+        }
+        
+        function updateLiveTest() {
+            const input = document.getElementById('testInput').value;
+            const encrypted = caesarEncrypt(input, currentKey);
+            document.getElementById('liveOutput').innerHTML = encrypted;
+            generateSteps(input);
+        }
+        
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const data = await response.json();
+                currentKey = data.key_value;
+                currentRule = data.rule_name;
+                document.getElementById('ruleInfo').innerHTML = `
+                    <strong>Rule Name:</strong> ${currentRule}<br>
+                    <strong>Key (Shift):</strong> ${currentKey}<br>
+                    <strong>Type:</strong> Substitution Cipher (Caesar)
+                `;
+                // Refresh live test with new key
+                updateLiveTest();
+            } catch (err) {
+                console.error('Failed to load settings:', err);
+                document.getElementById('ruleInfo').innerHTML = 'Error loading settings. Using defaults.';
+            }
+        }
+        
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/';
+        }
+        
+        async function checkAdmin() {
+            const response = await fetch('/api/me');
+            const data = await response.json();
+            if (data.isAdmin) {
+                document.getElementById('adminLink').style.display = 'inline-block';
+            }
+        }
+        
+        // Initialize
+        document.getElementById('testInput').addEventListener('input', updateLiveTest);
+        
+        async function init() {
+            await loadSettings();
+            checkAdmin();
+        }
+        
+        init();
+    </script>
+</body>
+</html>
