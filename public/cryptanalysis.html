@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Chat - Chi-squared Cryptanalysis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+        .header {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        .nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .nav a {
+            padding: 10px 20px;
+            background: white;
+            text-decoration: none;
+            color: #17a2b8;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        button {
+            padding: 10px 24px;
+            background: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #138496;
+        }
+        .results-table {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th, td {
+            padding: 12px 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #e9ecef;
+            color: #333;
+            position: sticky;
+            top: 0;
+        }
+        tr.best-match {
+            background: #d4edda;
+            font-weight: bold;
+        }
+        tr:hover {
+            background: #f1f3f5;
+        }
+        .best-key-box {
+            background: #d4edda;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 5px solid #28a745;
+        }
+        .info-text {
+            background: #e7f3ff;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .score-positive {
+            font-family: monospace;
+        }
+        .shift-badge {
+            display: inline-block;
+            background: #17a2b8;
+            color: white;
+            border-radius: 20px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        @media (max-width: 768px) {
+            th, td {
+                font-size: 12px;
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Chi-squared Cryptanalysis</h1>
+            <p>Automatically recover the Caesar cipher key using letter frequency analysis</p>
+        </div>
+        <div class="nav">
+            <a href="/chat">💬 Chat</a>
+            <a href="/processes">📊 Visualization</a>
+            <a href="/bruteforce">🔓 Brute Force</a>
+            <a href="/admin" id="adminLink" style="display:none;">⚙️ Admin</a>
+            <a href="#" onclick="logout()">🚪 Logout</a>
+        </div>
+
+        <div class="card">
+            <h3>📝 Ciphertext Input</h3>
+            <textarea id="ciphertext" rows="4" placeholder="Enter encrypted message here...&#10;Example: KHOOR ZRUOG" oninput="analyze()"></textarea>
+            <button onclick="analyze()">🔎 Run Chi-squared Analysis</button>
+        </div>
+
+        <div class="card" id="resultsCard" style="display: none;">
+            <div id="bestKeyDisplay" class="best-key-box"></div>
+            <div class="results-table">
+                <h3>📊 Chi-squared Scores for All 26 Shifts</h3>
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>Shift</th>
+                            <th>Decrypted Preview (first 60 chars)</th>
+                            <th>χ² Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody"></tbody>
+                </table>
+            </div>
+            <div class="info-text">
+                💡 <strong>How it works:</strong> For each possible shift (0–25), we decrypt the text and compare its letter frequencies
+                to standard English frequencies using the chi-squared statistic. The shift with the <strong>lowest χ² score</strong>
+                most likely represents the correct key. This demonstrates automatic key recovery without brute‑force trial.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Standard English letter frequencies (relative)
+        const englishFreq = {
+            'a': 0.08167, 'b': 0.01492, 'c': 0.02782, 'd': 0.04253, 'e': 0.12702,
+            'f': 0.02228, 'g': 0.02015, 'h': 0.06094, 'i': 0.06966, 'j': 0.00153,
+            'k': 0.00772, 'l': 0.04025, 'm': 0.02406, 'n': 0.06749, 'o': 0.07507,
+            'p': 0.01929, 'q': 0.00095, 'r': 0.05987, 's': 0.06327, 't': 0.09056,
+            'u': 0.02758, 'v': 0.00978, 'w': 0.02360, 'x': 0.00150, 'y': 0.01974, 'z': 0.00074
+        };
+
+        // Caesar decryption (same logic as server)
+        function caesarDecrypt(cipherText, shift) {
+            // shift is the encryption key; decryption uses (26 - shift) % 26
+            const decryptShift = (26 - (shift % 26)) % 26;
+            return cipherText.split('').map(char => {
+                if (char >= 'a' && char <= 'z') {
+                    return String.fromCharCode(((char.charCodeAt(0) - 97 + decryptShift) % 26) + 97);
+                } else if (char >= 'A' && char <= 'Z') {
+                    return String.fromCharCode(((char.charCodeAt(0) - 65 + decryptShift) % 26) + 65);
+                }
+                return char;
+            }).join('');
+        }
+
+        // Compute chi-squared statistic for a given decrypted text (only letters A-Z considered)
+        function computeChiSquared(text) {
+            // Count letter frequencies (case-insensitive)
+            const counts = {};
+            let totalLetters = 0;
+            for (let ch of text) {
+                const lower = ch.toLowerCase();
+                if (lower >= 'a' && lower <= 'z') {
+                    counts[lower] = (counts[lower] || 0) + 1;
+                    totalLetters++;
+                }
+            }
+            if (totalLetters === 0) return Infinity;
+
+            let chi2 = 0;
+            for (let i = 0; i < 26; i++) {
+                const letter = String.fromCharCode(97 + i);
+                const observed = counts[letter] || 0;
+                const expected = englishFreq[letter] * totalLetters;
+                if (expected > 0) {
+                    chi2 += Math.pow(observed - expected, 2) / expected;
+                }
+            }
+            return chi2;
+        }
+
+        // Analyze all shifts and display results (only runs if ciphertext is non-empty)
+        function analyze() {
+            const ciphertext = document.getElementById('ciphertext').value;
+            const resultsCard = document.getElementById('resultsCard');
+            
+            // If ciphertext is empty, hide results card and do nothing (no alert)
+            if (!ciphertext.trim()) {
+                resultsCard.style.display = 'none';
+                return;
+            }
+
+            const results = [];
+            let bestShift = null;
+            let bestChi2 = Infinity;
+
+            // Evaluate shifts 0 through 25
+            for (let shift = 0; shift <= 25; shift++) {
+                const decrypted = caesarDecrypt(ciphertext, shift);
+                const chi2 = computeChiSquared(decrypted);
+                results.push({
+                    shift: shift,
+                    decryptedPreview: decrypted.substring(0, 60) + (decrypted.length > 60 ? '…' : ''),
+                    chi2: chi2,
+                    fullDecrypted: decrypted
+                });
+                if (chi2 < bestChi2) {
+                    bestChi2 = chi2;
+                    bestShift = shift;
+                }
+            }
+
+            // Display best key info
+            const bestKeyDiv = document.getElementById('bestKeyDisplay');
+            bestKeyDiv.innerHTML = `
+                <strong>🔑 Recovered Key (Most Likely Shift):</strong> ${bestShift}<br>
+                <strong>📉 Minimum χ² Score:</strong> ${bestChi2.toFixed(4)}<br>
+                <strong>💬 Decrypted Message with Recovered Key:</strong><br>
+                <span style="font-family: monospace; background: white; padding: 5px; display: inline-block; margin-top: 8px;">${escapeHtml(results[bestShift].fullDecrypted)}</span>
+            `;
+
+            // Build table rows
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = results.map(r => {
+                const isBest = (r.shift === bestShift);
+                return `
+                    <tr class="${isBest ? 'best-match' : ''}">
+                        <td><span class="shift-badge">${r.shift}</span></td>
+                        <td style="font-family: monospace;">${escapeHtml(r.decryptedPreview)}</td>
+                        <td class="score-positive">${r.chi2.toFixed(4)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            resultsCard.style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Auth & navigation helpers
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/';
+        }
+
+        async function checkAuthAndAdmin() {
+            const response = await fetch('/api/me');
+            const data = await response.json();
+            if (!data.loggedIn) {
+                window.location.href = '/';
+                return false;
+            }
+            if (data.isAdmin) {
+                document.getElementById('adminLink').style.display = 'inline-block';
+            }
+            return true;
+        }
+
+        // Initialize page: verify authentication, keep results hidden, no automatic analysis
+        checkAuthAndAdmin().then(() => {
+            // No automatic analysis — textarea is empty, results card stays hidden.
+            // User must type or click button to trigger analysis.
+        });
+    </script>
+</body>
+</html>
